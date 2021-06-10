@@ -21,6 +21,15 @@ It makes it simpler to create and control other terminal applications.
 	child.ReadLine() // ReadLine() (string, error)
 	child.ReadUntil(' ') // ReadUntil(delim byte) ([]byte, error)
 
+
+`ssh` allow tab completion
+
+	child, err := gexpect.Spawn("ssh root@127.0.0.1")
+	if err != nil {
+		panic(err)
+	}
+	child.Interact()
+
 `ReadLine`, `ReadUntil` and `SendLine` send strings from/to `stdout/stdin` respectively
 
 	child, _ := gexpect.Spawn("cat")
@@ -54,6 +63,9 @@ It makes it simpler to create and control other terminal applications.
 	child, _ := gexpect.Spawn("echo 123 456 789")
 	result, _ := child.ExpectRegexFind("\d+ (\d+) (\d+)")
 	// result = []string{"123 456 789", "456", "789"}
+
+
+
 
 See `gexpect_test.go` and the `examples` folder for full syntax
 

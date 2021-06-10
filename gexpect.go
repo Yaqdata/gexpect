@@ -7,14 +7,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
+	"os/signal"
 	"regexp"
+	"syscall"
 	"time"
 	"unicode/utf8"
 
+	"github.com/creack/pty"
 	shell "github.com/kballard/go-shellquote"
-	"github.com/kr/pty"
+	"golang.org/x/term"
 )
 
 var (
@@ -371,10 +375,28 @@ func (expect *ExpectSubprocess) SendLine(command string) error {
 }
 
 func (expect *ExpectSubprocess) Interact() {
-	defer expect.Cmd.Wait()
+	defer func() { _ = expect.buf.f.Close() }()
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, syscall.SIGWINCH)
+	go func() {
+		for range ch {
+			if err := pty.InheritSize(os.Stdin, expect.buf.f); err != nil {
+				log.Printf("error resizing pty: %s", err)
+			}
+		}
+	}()
+	ch <- syscall.SIGWINCH
+	defer func() { signal.Stop(ch); close(ch) }()
+
+	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
+	if err != nil {
+		panic(err)
+	}
+	defer func() { _ = term.Restore(int(os.Stdin.Fd()), oldState) }()
+
 	io.Copy(os.Stdout, &expect.buf.b)
-	go io.Copy(os.Stdout, expect.buf.f)
 	go io.Copy(expect.buf.f, os.Stdin)
+	io.Copy(os.Stdout, expect.buf.f)
 }
 
 func (expect *ExpectSubprocess) ReadUntil(delim byte) ([]byte, error) {
@@ -387,7 +409,7 @@ func (expect *ExpectSubprocess) ReadUntil(delim byte) ([]byte, error) {
 		for i := 0; i < n; i++ {
 			if chunk[i] == delim {
 				if len(chunk) > i+1 {
-					expect.buf.PutBack(chunk[i+1:n])
+					expect.buf.PutBack(chunk[i+1 : n])
 				}
 				return join, nil
 			} else {
