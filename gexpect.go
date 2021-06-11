@@ -370,7 +370,7 @@ func (expect *ExpectSubprocess) Collect() []byte {
 }
 
 func (expect *ExpectSubprocess) SendLine(command string) error {
-	_, err := io.WriteString(expect.buf.f, command+"\r\n")
+	_, err := io.WriteString(expect.buf.f, command+"\n")
 	return err
 }
 
@@ -433,7 +433,11 @@ func (expect *ExpectSubprocess) ReadLine() (string, error) {
 }
 
 func _start(expect *ExpectSubprocess) (*ExpectSubprocess, error) {
-	f, err := pty.Start(expect.Cmd)
+	winsize, err := pty.GetsizeFull(os.Stdin)
+	if err != nil {
+		return nil, err
+	}
+	f, err := pty.StartWithSize(expect.Cmd, winsize)
 	if err != nil {
 		return nil, err
 	}
